@@ -85,34 +85,6 @@ def plot_acf_y(y, lags=30, burn=0):
     plt.ylabel("ACF")
     plt.tight_layout()
     plt.show()
-
-
-# ---- 4) Nuage de points (y vs h) ----
-def plot_scatter_y_h(y, h, max_points=5000):
-    y = np.asarray(y).ravel()
-    h = np.asarray(h).ravel()
-    T = min(len(y), len(h))
-
-    # sous-échantillonnage pour éviter un nuage trop dense
-    if T > max_points:
-        idx = np.random.choice(T, size=max_points, replace=False)
-        y_plot = y[idx]
-        h_plot = h[idx]
-    else:
-        y_plot = y[:T]
-        h_plot = h[:T]
-
-    plt.figure(figsize=(5, 4))
-    plt.scatter(h_plot, y_plot, alpha=0.3)
-
-    m = max(float(h_plot.max()), float(y_plot.max()))
-    plt.plot([0, m], [0, m], "--", linewidth=2)
-
-    plt.title("Nuage de points : y_t vs h_t (sous-échantillonné)")
-    plt.xlabel("h_t")
-    plt.ylabel("y_t")
-    plt.tight_layout()
-    plt.show()
     
 
 def plot_overlay_clean(y, h, T_show=400, start=0):
