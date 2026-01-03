@@ -118,8 +118,13 @@ def _exact_filter_loglik_beta_vec(y, beta, Z, phi, nu, c):
                     tmp[i] = _nbinom_logpmf(z_grid[j], r_trans, p_trans) + log_p_z[i]
                 new_log_p_z[j] = _logsumexp_1d(tmp)
 
+            # for j in range(Z + 1):
+                # log_p_z[j] = new_log_p_z[j]
+
+            # normalisation pour avoir loi de proba
+            norm = _logsumexp_1d(new_log_p_z)
             for j in range(Z + 1):
-                log_p_z[j] = new_log_p_z[j]
+                log_p_z[j] = new_log_p_z[j] - norm
 
     return total_log_like, max_pZ
 
@@ -175,8 +180,13 @@ def _exact_filter_loglik_beta_scalar(y, beta, Z, phi, nu, c):
                     tmp[i] = _nbinom_logpmf(z_grid[j], r_trans, p_trans) + log_p_z[i]
                 new_log_p_z[j] = _logsumexp_1d(tmp)
 
+            # for j in range(Z + 1):
+                # log_p_z[j] = new_log_p_z[j]
+            
+            # normalisation pour avoir loi de proba
+            norm = _logsumexp_1d(new_log_p_z)
             for j in range(Z + 1):
-                log_p_z[j] = new_log_p_z[j]
+                log_p_z[j] = new_log_p_z[j] - norm
 
     return total_log_like, max_pZ
 
