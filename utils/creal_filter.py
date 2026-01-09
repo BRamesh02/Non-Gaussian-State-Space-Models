@@ -2,20 +2,18 @@ import math
 import numpy as np
 from numba import njit
 
-
-# ============================================================
-# Numba helpers
-# ============================================================
+# PARTIE 1 : Helpers Numba
 
 @njit
 def _logsumexp_1d(a):
-    """
-    Stable log-sum-exp for a 1D array.
-    """
-    m = -1e300
+    """Log-sum-exp stable fait à la main pour Numba."""
+    m = -1e300  # -inf
     for i in range(a.shape[0]):
         if a[i] > m:
             m = a[i]
+            
+    if m == -1e300:
+        return -1e300
 
     s = 0.0
     for i in range(a.shape[0]):
@@ -23,52 +21,30 @@ def _logsumexp_1d(a):
 
     return m + math.log(s)
 
-
 @njit
 def _nbinom_logpmf(k, r, p):
-    """
-    Negative Binomial log-pmf (SciPy parameterization):
-
-        P(K = k) = C(k+r-1, k) (1-p)^k p^r
-
-    where k = number of failures before r successes.
-    """
+    """Log-PMF de la loi Negative Binomiale."""
+    if k < 0: return -1e300
     return (math.lgamma(k + r)
             - math.lgamma(r)
             - math.lgamma(k + 1.0)
             + r * math.log(p)
             + k * math.log(1.0 - p))
 
-
 @njit
-def _exact_filter_loglik_beta_vec(y, beta, Z, phi, nu, c):
-    """
-    Exact truncated filter with time-varying beta_t.
-
-    Parameters
-    ----------
-    y : array[int], shape (T,)
-    beta : array[float], shape (T,)
-        beta_t >= 0
-    Z : int
-    phi, nu, c : float
-
-    Returns
-    -------
-    total_log_like : float
-    max_pZ : float
-    """
+def _exact_filter_core(y, exposure_arr, Z, phi, nu, c, return_filter):
     T = y.shape[0]
     z_grid = np.arange(Z + 1)
 
-    # --------------------------------------------------------
-    # Initialization: z_1 ~ NB(r=nu, p=1-phi)
-    # (kept as in your code for internal consistency)
-    # --------------------------------------------------------
+    # Init: z_1 ~ NB(r=nu, p=1-phi)
     log_p_z = np.empty(Z + 1)
     p_init = 1.0 - phi
     for i in range(Z + 1):
         log_p_z[i] = _nbinom_logpmf(z_grid[i], nu, p_init)
+
+    norm = _logsumexp_1d(log_p_z)
+    for i in range(Z + 1):
+        log_p_z[i] -= norm
 
     total_log_like = 0.0
     max_pZ = 0.0
@@ -76,18 +52,18 @@ def _exact_filter_loglik_beta_vec(y, beta, Z, phi, nu, c):
     tmp = np.empty(Z + 1)
     new_log_p_z = np.empty(Z + 1)
 
-    # --------------------------------------------------------
-    # Filtering recursion
-    # --------------------------------------------------------
+    # stockage des filtres si demandé
+    if return_filter:
+        filt_prob = np.empty((T, Z + 1))
+    else:
+        filt_prob = np.empty((1, 1))  # dummy
+
     for t in range(T):
         yt = y[t]
-        bt = beta[t]  # beta_t
+        bt = exposure_arr[t]
 
-        # Observation: y_t | z_t  ~ NB(r=nu+z_t, p_obs)
-        # with p_obs = 1/(1 + c*beta_t)   (SciPy NB parameterization)
+        # --- UPDATE ---
         p_obs = 1.0 / (1.0 + c * bt)
-
-        # ---- Update step
         for i in range(Z + 1):
             r_obs = nu + z_grid[i]
             tmp[i] = _nbinom_logpmf(yt, r_obs, p_obs) + log_p_z[i]
@@ -98,168 +74,102 @@ def _exact_filter_loglik_beta_vec(y, beta, Z, phi, nu, c):
         for i in range(Z + 1):
             log_p_z[i] = tmp[i] - log_like_t
 
-        # Diagnostic: mass at truncation boundary
+        # filtré: p(z_t | y_1:t)
+        if return_filter:
+            for i in range(Z + 1):
+                filt_prob[t, i] = math.exp(log_p_z[i])
+
+        # diag : proba au bord
         pZ = math.exp(log_p_z[Z])
         if pZ > max_pZ:
             max_pZ = pZ
 
-        # ---- Prediction step
+        # --- PREDICTION ---
         if t < T - 1:
-            y_prev = yt
-            b_prev = bt
-
-            # Transition: z_{t+1} | z_t, y_t ~ NB(r=nu+z_t+y_t, p_trans)
-            # with p_trans = (1 + c*beta_t)/(1 + c*beta_t + phi)
-            p_trans = (1.0 + c * b_prev) / (1.0 + c * b_prev + phi)
+            p_trans = (1.0 + c * bt) / (1.0 + c * bt + phi)
 
             for j in range(Z + 1):
                 for i in range(Z + 1):
-                    r_trans = nu + y_prev + z_grid[i]
+                    r_trans = nu + yt + z_grid[i]
                     tmp[i] = _nbinom_logpmf(z_grid[j], r_trans, p_trans) + log_p_z[i]
                 new_log_p_z[j] = _logsumexp_1d(tmp)
 
-            # for j in range(Z + 1):
-                # log_p_z[j] = new_log_p_z[j]
-
-            # normalisation pour avoir loi de proba
-            norm = _logsumexp_1d(new_log_p_z)
+            norm_pred = _logsumexp_1d(new_log_p_z)
             for j in range(Z + 1):
-                log_p_z[j] = new_log_p_z[j] - norm
+                log_p_z[j] = new_log_p_z[j] - norm_pred
 
-    return total_log_like, max_pZ
-
-
-@njit
-def _exact_filter_loglik_beta_scalar(y, beta, Z, phi, nu, c):
-    """
-    Same as above but beta is a scalar (faster).
-    """
-    T = y.shape[0]
-    z_grid = np.arange(Z + 1)
-
-    # init: z_1 ~ NB(r=nu, p=1-phi)
-    log_p_z = np.empty(Z + 1)
-    p_init = 1.0 - phi
-    for i in range(Z + 1):
-        log_p_z[i] = _nbinom_logpmf(z_grid[i], nu, p_init)
-
-    # precompute obs/trans p's (constant beta)
-    p_obs = 1.0 / (1.0 + c * beta)
-    p_trans = (1.0 + c * beta) / (1.0 + c * beta + phi)
-
-    total_log_like = 0.0
-    max_pZ = 0.0
-
-    tmp = np.empty(Z + 1)
-    new_log_p_z = np.empty(Z + 1)
-
-    for t in range(T):
-        yt = y[t]
-
-        # update
-        for i in range(Z + 1):
-            r_obs = nu + z_grid[i]
-            tmp[i] = _nbinom_logpmf(yt, r_obs, p_obs) + log_p_z[i]
-
-        log_like_t = _logsumexp_1d(tmp)
-        total_log_like += log_like_t
-
-        for i in range(Z + 1):
-            log_p_z[i] = tmp[i] - log_like_t
-
-        pZ = math.exp(log_p_z[Z])
-        if pZ > max_pZ:
-            max_pZ = pZ
-
-        # prediction
-        if t < T - 1:
-            y_prev = yt
-            for j in range(Z + 1):
-                for i in range(Z + 1):
-                    r_trans = nu + y_prev + z_grid[i]
-                    tmp[i] = _nbinom_logpmf(z_grid[j], r_trans, p_trans) + log_p_z[i]
-                new_log_p_z[j] = _logsumexp_1d(tmp)
-
-            # for j in range(Z + 1):
-                # log_p_z[j] = new_log_p_z[j]
-            
-            # normalisation pour avoir loi de proba
-            norm = _logsumexp_1d(new_log_p_z)
-            for j in range(Z + 1):
-                log_p_z[j] = new_log_p_z[j] - norm
-
-    return total_log_like, max_pZ
+    return total_log_like, max_pZ, filt_prob
 
 
-# ============================================================
-# User-facing class
-# ============================================================
+# PARTIE 2 : Classe Utilisateur 
 
 class ExactFilter:
-    """
-    Exact (truncated) likelihood filter for the Poisson–Gamma
-    count model (Creal 2017, model used in Sec. 5.1 in aggregated form).
-
-    Only approximation: truncation z_t ∈ {0,...,Z_trunc}.
-
-    Parameters
-    ----------
-    y : array-like
-        Observed count time series.
-    Z_trunc : int
-        Truncation level for the latent state z_t.
-
-    Usage
-    -----
-    >>> f = ExactFilter(y, Z_trunc=200)
-    >>> ll, max_pZ = f.log_likelihood(phi, nu, c, beta=30.0, return_diag=True)
-    """
-
     def __init__(self, y, Z_trunc=50):
         self.y = np.asarray(y, dtype=np.int64)
-        if self.y.ndim != 1:
-            raise ValueError("y must be a 1D array of counts.")
-        if np.any(self.y < 0):
-            raise ValueError("y must contain nonnegative counts.")
-
-        self.T = self.y.shape[0]
+        self.T = len(self.y)
         self.Z = int(Z_trunc)
-        if self.Z < 0:
-            raise ValueError("Z_trunc must be >= 0.")
 
-    def log_likelihood(self, phi, nu, c, beta=1.0, return_diag=False):
-        """
-        Compute log-likelihood via the exact truncated filter.
+    def _compute_exposure(self, expo, X, beta_coeffs, tau):
+        # 1. Exposition fournie directement
+        if expo is not None:
+            return np.asarray(expo, dtype=np.float64).ravel()
 
-        beta can be:
-          - a positive scalar (constant beta)
-          - an array-like of length T (time-varying beta_t)
-        """
-        phi = float(phi)
-        nu = float(nu)
-        c = float(c)
-
-        if not (0.0 < phi < 1.0):
-            raise ValueError("phi must satisfy 0 < phi < 1.")
-        if not (nu > 1.0):
-            raise ValueError("nu must be > 1 (Feller condition).")
-        if not (c > 0.0):
-            raise ValueError("c must be > 0.")
-
-        # beta handling
-        if np.isscalar(beta):
-            beta = float(beta)
-            if not (beta > 0.0):
-                raise ValueError("beta must be > 0.")
-            ll, max_pZ = _exact_filter_loglik_beta_scalar(self.y, beta, self.Z, phi, nu, c)
+        # 2. Sinon, on construit depuis X, beta, tau
+        if tau is None:
+            tau_vec = np.ones(self.T)
         else:
-            beta = np.asarray(beta, dtype=np.float64)
-            if beta.ndim != 1 or beta.shape[0] != self.T:
-                raise ValueError("beta must be a scalar or a 1D array of length T.")
-            if np.any(beta <= 0.0):
-                raise ValueError("beta_t must be > 0 for all t.")
-            ll, max_pZ = _exact_filter_loglik_beta_vec(self.y, beta, self.Z, phi, nu, c)
+            tau_vec = np.asarray(tau, dtype=np.float64).ravel()
 
+        if X is None:
+        # Pas de régresseurs, juste tau
+            return tau_vec
+
+    # --- AJOUT ICI ---
+        if beta_coeffs is None:
+            raise ValueError("coeffs must be provided when X is provided")
+    # ------------------
+
+        X = np.asarray(X, dtype=np.float64)
+        if X.ndim == 1:
+            X = X.reshape(self.T, 1)
+
+        beta_coeffs = np.asarray(beta_coeffs, dtype=np.float64).ravel()
+
+        lin_pred = X @ beta_coeffs
+        return tau_vec * np.exp(lin_pred)
+
+
+    def log_likelihood(self, phi, nu, c,
+                   X=None, coeffs=None, tau=None, exposure=None,
+                   return_diag=False, return_filter=False):
+        """
+        Calcule la log-vraisemblance.
+        
+        Paramètres:
+        -----------
+        phi, nu, c : paramètres scalaires du modèle
+        X : (T, K) matrice de régresseurs (optionnel)
+        coeffs : (K,) coefficients de régression (optionnel)
+        tau : (T,) offset/volume (optionnel)
+        exposure : (T,) vecteur direct d'exposition (prioritaire si fourni)
+        """
+        # 1. Préparation des données (Python/Numpy)
+        exposure_vec = self._compute_exposure(exposure, X, coeffs, tau)
+        
+        if len(exposure_vec) != self.T:
+            raise ValueError(f"L'exposition doit avoir la taille T={self.T}")
+            
+        # 2. Appel au moteur optimisé (Numba)
+        # Le compilateur JIT va mettre en cache cette fonction au premier appel
+        ll, max_pz, filt_prob = _exact_filter_core(
+            self.y, exposure_vec, self.Z, float(phi), float(nu), float(c),
+            return_filter
+        )
+
+        if return_filter and return_diag:
+            return ll, max_pz, filt_prob
+        if return_filter:
+            return ll, filt_prob
         if return_diag:
-            return ll, max_pZ
+            return ll, max_pz
         return ll
