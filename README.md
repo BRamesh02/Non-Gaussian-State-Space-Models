@@ -97,7 +97,8 @@ The project is structured around three main tasks.
   - Likelihood profiles
   - Filtering distribution plots
   - Autocorrelation functions (ACFs)
-  
+
+```
 
 ---
 
