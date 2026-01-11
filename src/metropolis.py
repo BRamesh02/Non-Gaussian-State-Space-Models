@@ -3,11 +3,11 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
-# --- 1. FONCTIONS DE BASE ---
+# --- 1. BASIC FUNCTIONS ---
 
 def log_prior(theta):
     """
-    Définit les contraintes du modèle.
+    Defines the constraints of the model.
     theta = [phi, nu, c]
     """
     phi, nu, c = theta
@@ -18,8 +18,8 @@ def log_prior(theta):
 
 def run_metropolis_exact(y_data, exact_filter, n_iterations=5000, initial_theta=None, proposal_std=None, disable_tqdm=False):
     """
-    Algorithme MCMC Random Walk Metropolis-Hastings.
-    MODIFICATION : Retourne maintenant (chain, acceptance_rate)
+    MCMC Random Walk Metropolis-Hastings algorithm.
+    MODIFICATION: Now returns (chain, acceptance_rate)
     """
     if initial_theta is None:
         current_theta = np.array([0.5, 2.0, 0.5])
@@ -65,26 +65,26 @@ def run_metropolis_exact(y_data, exact_filter, n_iterations=5000, initial_theta=
         
         chain[i] = current_theta
 
-    # CALCUL DU TAUX
+    # RATE CALCULATION
     acc_rate = accept_count / n_iterations
     
-    # On affiche seulement si on n'est pas en mode "silencieux" (parallèle)
+    # Only displayed if not in ‘silent’ (parallel) mode.
     if not disable_tqdm:
         print(f"Taux d'acceptation final : {acc_rate:.2%}")
         
     # RETOURNE UN TUPLE MAINTENANT
     return chain, acc_rate
 
-# --- 2. FONCTION PARALLÈLE (LE WORKER) ---
+# --- 2. PARALLEL FUNCTION ---
 
 def _worker_chain(seed, y, exact_filter, n_iter, proposal_std):
     np.random.seed(seed)
-    start_phi = np.random.uniform(0.5, 0.95) # Attention à 0.999 c'est risqué
+    start_phi = np.random.uniform(0.5, 0.95) # Be careful at 0.999, it's risky.
     start_nu  = np.random.uniform(1.5, 3.5)
-    start_c   = np.random.uniform(0.1, 0.3) # Eviter 0 pile
+    start_c   = np.random.uniform(0.1, 0.3) # Avoid 0 
     start_theta = [start_phi, start_nu, start_c]
     
-    # Le worker renvoie (chain, rate)
+    # The worker returns (chain, rate)
     return run_metropolis_exact(
         y_data=y,
         exact_filter=exact_filter,
@@ -94,15 +94,15 @@ def _worker_chain(seed, y, exact_filter, n_iter, proposal_std):
         disable_tqdm=True 
     )
 
-# --- 3. ORCHESTRATEUR MULTI-CHAÎNES ---
+# --- 3. MULTI-CHANNEL ORCHESTRATOR ---
 
 def run_multi_chain_mcmc(y, exact_filter, n_chains=4, n_iter=2000, proposal_std=[0.008, 0.07, 0.03], burn_in=500, true_params=None):
     """
-    Lance plusieurs chaînes MCMC en parallèle et affiche TOUS les résultats.
+    Launches multiple MCMC chains in parallel and displays ALL results.
     """
-    print(f"🚀 Lancement de {n_chains} chaînes MCMC en parallèle sur CPU...")
+    print(f" Launching {n_chains} MCMC chains in parallel on CPU...")
     
-    # --- 1. EXÉCUTION PARALLÈLE ---
+    # --- 1. PARALLEL EXECUTION ---
     results = Parallel(n_jobs=-1)(
         delayed(_worker_chain)(
             seed=k, 
@@ -113,35 +113,35 @@ def run_multi_chain_mcmc(y, exact_filter, n_chains=4, n_iter=2000, proposal_std=
         ) for k in tqdm(range(n_chains), desc="Progression globale")
     )
     
-    # Décomposition des résultats
+    # Breakdown of results
     chains = np.array([r[0] for r in results]) # Shape: (n_chains, n_iter, 3)
     rates = [r[1] for r in results]
     
-    # --- AFFICHAGE COMPLET DES TAUX D'ACCEPTATION ---
+    # --- FULL DISPLAY OF ACCEPTANCE RATES ---
     print("\n" + "="*40)
-    print("      DÉTAIL DES TAUX D'ACCEPTATION")
+    print("      DETAILS OF ACCEPTANCE RATES")
     print("="*40)
-    print(f"Moyenne globale : {np.mean(rates):.2%}\n")
+    print(f"Overall average : {np.mean(rates):.2%}\n")
     
-    # On boucle sur TOUTES les chaînes, sans limite
+    # We loop on ALL chains, without limitation.
     for k, r in enumerate(rates):
-        # Indicateur visuel : Idéalement entre 20% et 50%
+        # Visual indicator: Ideally between 20% and 50%
         if 0.20 <= r <= 0.50:
-            status = "✅ Optimal"
+            status = " Optimal"
         elif r < 0.10:
-            status = "⚠️ Trop faible (Pas bloqué)"
+            status = " Too low (Not blocked)"
         elif r > 0.60:
-            status = "⚠️ Trop élevé (Marche aléatoire lente)"
+            status = " Too high (Slow random walk)"
         else:
-            status = "👌 Acceptable"
+            status = " Acceptable"
             
-        # k+1:02d permet d'aligner les chiffres (01, 02, ... 20)
-        print(f"Chaîne {k+1:02d} : {r:.2%}  -> {status}")
+        # k+1:02d enables the alignment of figures (01, 02, ... 20)
+        print(f"Chains {k+1:02d} : {r:.2%}  -> {status}")
 
     print("="*40)
 
-    # --- 2. FIGURE 1 : TRACEPLOTS ---
-    print("\n✅ Génération Figure 1 : Traceplots...")
+    # --- 2. FIGURE 1: TRACEPLOTS ---
+    print("\n Generation Figure 1: Traceplots...")
     param_names = [r'$\phi$', r'$\nu$', r'$c$']
     colors = plt.cm.jet(np.linspace(0, 1, n_chains))
     
@@ -160,19 +160,19 @@ def run_multi_chain_mcmc(y, exact_filter, n_chains=4, n_iter=2000, proposal_std=
         ax.grid(True, alpha=0.3)
         if i == 0 and true_params is not None: ax.legend(loc='upper right')
         
-    plt.xlabel("Itérations")
+    plt.xlabel("Iterations")
     plt.tight_layout()
     plt.show()
 
-    # --- 3. CALCUL DES MOYENNES ---
+    # --- 3. CALCULATION OF AVERAGES ---
     chain_means = []
     for k in range(n_chains):
         clean_samples = chains[k][burn_in:]
         chain_means.append(clean_samples.mean(axis=0))
     chain_means = np.array(chain_means)
 
-    # --- 4. FIGURE 2 : HISTOGRAMMES ---
-    print("\n✅ Génération Figure 2 : Histogrammes des Estimateurs...")
+    # --- 4. FIGURE 2 : HISTOGRAMS ---
+    print("\n Generation Figure 2: Histograms of Estimators...")
     fig2, axes2 = plt.subplots(1, 3, figsize=(15, 5))
     
     for i in range(3):
@@ -194,12 +194,12 @@ def run_multi_chain_mcmc(y, exact_filter, n_chains=4, n_iter=2000, proposal_std=
     plt.tight_layout()
     plt.show()
     
-    # --- 5. STATISTIQUES FINALES ---
+    # --- 5. FINAL STATISTICS ---
     all_samples = np.vstack([c[burn_in:] for c in chains])
     global_mean = all_samples.mean(axis=0)
     global_std = all_samples.std(axis=0)
     
-    print("\n--- RÉSULTATS FINAUX (Agrégés) ---")
+    print("\n--- FINAL RESULTS (Aggregate) ---")
     print(f"Phi : {global_mean[0]:.4f} +/- {global_std[0]:.4f}")
     print(f"Nu  : {global_mean[1]:.4f} +/- {global_std[1]:.4f}")
     print(f"c   : {global_mean[2]:.4f} +/- {global_std[2]:.4f}")
