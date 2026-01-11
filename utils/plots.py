@@ -8,7 +8,7 @@ from statsmodels.tsa.stattools import acf
 
 
 
-# ---- 1) Time series y and h ----
+# 1) Time series y and h 
 def plot_time_series(y, h, T_show=200, start=0, use_bars=False):
     y = np.asarray(y).ravel()
     h = np.asarray(h).ravel()
@@ -34,7 +34,7 @@ def plot_time_series(y, h, T_show=200, start=0, use_bars=False):
     plt.show()
 
 
-# ---- 2) Histogram of h and theoretical density ----
+# 2) Histogram of h and theoretical density 
 def plot_histogram_h(h, nu, phi, c, burn=100):
     h = np.asarray(h).ravel()
     h_ss = h[burn:] if burn < len(h) else h
@@ -61,7 +61,7 @@ def plot_histogram_h(h, nu, phi, c, burn=100):
     plt.show()
 
 
-# ---- 3) Autocorrelation of h ----
+# Autocorrelation of h 
 def plot_acf_h(h, lags=30, burn=0):
     h = np.asarray(h).ravel()
     h2 = h[burn:] if burn < len(h) else h
@@ -76,7 +76,7 @@ def plot_acf_h(h, lags=30, burn=0):
     plt.show()
 
 
-# ---- 3bis) Autocorrelation of y (useful because it is observed) ----
+# Autocorrelation of y (useful because it is observed) 
 def plot_acf_y(y, lags=30, burn=0):
     y = np.asarray(y).ravel()
     y2 = y[burn:] if burn < len(y) else y
@@ -169,7 +169,7 @@ def plot_mcmc_diagnostics(chains, true_params=None, param_names=None, burn_in=50
         chain_data = chains[:, burn_in:, i]
         flat_data = chain_data.flatten() 
         
-        # 1. TRACEPLOT (Mélange)
+        #  TRACEPLOT (Mélange)
         ax_trace = axes[i, 0]
         for c in range(n_chains):
             ax_trace.plot(chain_data[c], lw=0.5, alpha=0.6, color=colors[c])
@@ -184,7 +184,7 @@ def plot_mcmc_diagnostics(chains, true_params=None, param_names=None, burn_in=50
         ax_trace.grid(True, alpha=0.3)
 
         
-        # 2. DENSITÉ (Posterior)
+        #  DENSITÉ (Posterior)
         ax_hist = axes[i, 1]
         ax_hist.hist(flat_data, bins=30, density=True, alpha=0.4, color='skyblue', edgecolor='black')
         
@@ -203,7 +203,7 @@ def plot_mcmc_diagnostics(chains, true_params=None, param_names=None, burn_in=50
         ax_hist.grid(True, alpha=0.3)
 
         
-        # 3. ACF (Autocorrélation)
+        #  ACF (Autocorrélation)
         ax_acf = axes[i, 2]
         acf_vals = acf(chains[0, burn_in:, i], nlags=40)
         
@@ -231,7 +231,7 @@ def plot_pf_profile_grid(
     Y_Q=(0.01, 0.99),
     RNG_SEED=123,
     xlabel=None,
-    ncols=3,                # <<< 3 per row by default
+    ncols=3,                
     figsize_per_ax=(4.5, 3.8)
 ):
     """
