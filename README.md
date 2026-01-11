@@ -72,10 +72,10 @@ The project is structured around three main tasks.
 │   ├── data_groupe_T1000.xlsx  # Source data
 │   └── stored_result/          # Stored outputs
 ├── notebooks/
-│   ├── generate_and_load_data.ipynb
-│   ├── task_1.ipynb            # Exact vs bootstrap filtering comparison
-│   ├── task_2.ipynb            # (Optional / intermediate experiments)
-│   ├── task_3.ipynb            # MCMC and PMMH inference experiments
+│   ├── generate_and_load_data.ipynb # To generate data used for each task
+│   ├── task_1.ipynb                 # Exact vs bootstrap filtering comparison
+│   ├── task_2.ipynb                 # (Optional / intermediate experiments)
+│   ├── task_3.ipynb                 # MCMC and PMMH inference experiments
 ├── src/
 │   ├── cox_simulation.py       # Simulation of the state-space model (Section 5.1)
 │   ├── creal_filter.py         # Exact filtering algorithm (Creal, 2012)
@@ -117,6 +117,8 @@ The project is structured around three main tasks.
   - Autocorrelation functions (ACFs)
 
 ```
+
+Note: `data/` contains the simulated dataset used throughout the project for simplicity.
 
 ---
 
