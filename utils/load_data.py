@@ -39,13 +39,13 @@ def load_data(filename, serie_name):
         else:
             X = None
             
-        print(f"✅ Load: {serie_name} (Beta: {beta})")
+        print(f" Load: {serie_name} (Beta: {beta})")
         return y, X, h_true, beta, params
 
     except FileNotFoundError:
-        print(f"❌ Error: The file '{filename}' cannot be found.")
+        print(f" Error: The file '{filename}' cannot be found.")
         return None, None, None, None, None
     except Exception as e:
-        print(f"❌ Unexpected error : {e}")
+        print(f" Unexpected error : {e}")
         # We note the error to see the traceback if necessary
         raise e
