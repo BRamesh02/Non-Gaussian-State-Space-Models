@@ -116,14 +116,14 @@ class CoxAnalysisManager:
             data_low = d_low[safe_burn:]
             data_high = d_high[safe_burn:]
 
-            # --- 1. Trace Plot ---
+            # Trace Plot 
             ax_trace = axes[i, 0]
             ax_trace.plot(d_high, label='High N', alpha=0.6)
             ax_trace.plot(d_low, label='Low N', alpha=0.6, color='red', lw=1)
             ax_trace.set_title(f"Trace - {lbl}")
             ax_trace.legend()
 
-            # --- 2. Density Plot ---
+            # Density Plot 
             ax_kde = axes[i, 1]
             try:
                 if len(data_high) > 1:
@@ -135,7 +135,7 @@ class CoxAnalysisManager:
             except:
                 ax_kde.text(0.5, 0.5, "KDE Error", ha='center')
 
-            # --- 3. ACF Plot (Dual) ---
+            # ACF Plot (Dual)
             ax_acf = axes[i, 2]
             n_samples = len(data_high)
             
@@ -144,12 +144,12 @@ class CoxAnalysisManager:
             if safe_lags < 1: safe_lags = 1
 
             if n_samples > 2:
-                # A. Plot Low N first (Background, Red, NO Confidence Interval to avoid clutter)
+                # Plot Low N first (Background, Red, NO Confidence Interval to avoid clutter)
                 plot_acf(data_low, ax=ax_acf, lags=safe_lags, alpha=None, 
                          color='red', vlines_kwargs={"colors": "red", "alpha": 0.3},
                          title=f"ACF - {lbl}")
                 
-                # B. Plot High N on top (Foreground, Blue, WITH Confidence Interval)
+                # Plot High N on top (Foreground, Blue, WITH Confidence Interval)
                 # We overwrite the title to clean up the double plotting artifacts
                 plot_acf(data_high, ax=ax_acf, lags=safe_lags, alpha=0.05, 
                          color='tab:blue', vlines_kwargs={"colors": "tab:blue"},
@@ -233,7 +233,7 @@ class CoxAnalysisManager:
         for i, col in enumerate(cols):
             ax = axes[i]
             
-            # --- SEABORN FIX: use data=df and y=col name ---
+            # SEABORN FIX: use data=df and y=col name 
             sns.boxplot(data=df, y=col, ax=ax, color='skyblue')
             sns.swarmplot(data=df, y=col, ax=ax, color='black', alpha=0.7)
             
