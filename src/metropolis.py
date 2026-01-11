@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
-# --- 1. BASIC FUNCTIONS ---
+
 
 def log_prior(theta):
     """
@@ -65,26 +65,22 @@ def run_metropolis_exact(y_data, exact_filter,  X=None,beta=None,n_iterations=50
         
         chain[i] = current_theta
 
-    # RATE CALCULATION
     acc_rate = accept_count / n_iterations
     
-    # Only displayed if not in ‘silent’ (parallel) mode.
     if not disable_tqdm:
         print(f"Taux d'acceptation final : {acc_rate:.2%}")
         
-    # RETOURNE UN TUPLE MAINTENANT
     return chain, acc_rate
 
-# --- 2. PARALLEL FUNCTION ---
+
 
 def _worker_chain(seed, y, exact_filter, n_iter, proposal_std, X=None, beta=None):
     np.random.seed(seed)
-    start_phi = np.random.uniform(0.5, 0.95) # Be careful at 0.999, it's risky.
-    start_nu  = np.random.uniform(1.5, 3.5)
-    start_c   = np.random.uniform(0.1, 0.3) # Avoid 0 
+    start_phi = np.random.uniform(0.5, 0.95) 
+    start_nu  = np.random.uniform(1.5, 5)
+    start_c   = np.random.uniform(0.1, 0.6)
     start_theta = [start_phi, start_nu, start_c]
     
-    # The worker returns (chain, rate)
     return run_metropolis_exact(
         y_data=y,
         exact_filter=exact_filter,
@@ -94,7 +90,6 @@ def _worker_chain(seed, y, exact_filter, n_iter, proposal_std, X=None, beta=None
         disable_tqdm=True, X=X ,beta=beta
     )
 
-# --- 3. MULTI-CHANNEL ORCHESTRATOR ---
 
 def run_multi_chain_mcmc(y, exact_filter, X=None,beta=None, n_chains=4, n_iter=2000, proposal_std=[0.008, 0.07, 0.03], burn_in=500, true_params=None):
     """
@@ -102,7 +97,6 @@ def run_multi_chain_mcmc(y, exact_filter, X=None,beta=None, n_chains=4, n_iter=2
     """
     print(f" Launching {n_chains} MCMC chains in parallel on CPU...")
     
-    # --- 1. PARALLEL EXECUTION ---
     results = Parallel(n_jobs=-1)(
         delayed(_worker_chain)(
             seed=k, 
@@ -115,19 +109,18 @@ def run_multi_chain_mcmc(y, exact_filter, X=None,beta=None, n_chains=4, n_iter=2
         ) for k in tqdm(range(n_chains), desc="Progression globale")
     )
     
-    # Breakdown of results
-    chains = np.array([r[0] for r in results]) # Shape: (n_chains, n_iter, 3)
+    chains = np.array([r[0] for r in results]) 
     rates = [r[1] for r in results]
     
-    # --- FULL DISPLAY OF ACCEPTANCE RATES ---
+    # display of acceptance rate
     print("\n" + "="*40)
     print("      DETAILS OF ACCEPTANCE RATES")
     print("="*40)
     print(f"Overall average : {np.mean(rates):.2%}\n")
     
-    # We loop on ALL chains, without limitation.
+
     for k, r in enumerate(rates):
-        # Visual indicator: Ideally between 20% and 50%
+
         if 0.20 <= r <= 0.50:
             status = " Optimal"
         elif r < 0.10:
@@ -137,12 +130,11 @@ def run_multi_chain_mcmc(y, exact_filter, X=None,beta=None, n_chains=4, n_iter=2
         else:
             status = " Acceptable"
             
-        # k+1:02d enables the alignment of figures (01, 02, ... 20)
+
         print(f"Chains {k+1:02d} : {r:.2%}  -> {status}")
 
     print("="*40)
 
-    # --- 2. FIGURE 1: TRACEPLOTS ---
     print("\n Generation Figure 1: Traceplots...")
     param_names = [r'$\phi$', r'$\nu$', r'$c$']
     colors = plt.cm.jet(np.linspace(0, 1, n_chains))
@@ -166,14 +158,12 @@ def run_multi_chain_mcmc(y, exact_filter, X=None,beta=None, n_chains=4, n_iter=2
     plt.tight_layout()
     plt.show()
 
-    # --- 3. CALCULATION OF AVERAGES ---
     chain_means = []
     for k in range(n_chains):
         clean_samples = chains[k][burn_in:]
         chain_means.append(clean_samples.mean(axis=0))
     chain_means = np.array(chain_means)
 
-    # --- 4. FIGURE 2 : HISTOGRAMS ---
     print("\n Generation Figure 2: Histograms of Estimators...")
     fig2, axes2 = plt.subplots(1, 3, figsize=(15, 5))
     
@@ -196,7 +186,6 @@ def run_multi_chain_mcmc(y, exact_filter, X=None,beta=None, n_chains=4, n_iter=2
     plt.tight_layout()
     plt.show()
     
-    # --- 5. FINAL STATISTICS ---
     all_samples = np.vstack([c[burn_in:] for c in chains])
     global_mean = all_samples.mean(axis=0)
     global_std = all_samples.std(axis=0)
