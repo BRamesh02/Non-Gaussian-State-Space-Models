@@ -119,18 +119,5 @@ class CrealCoxSSM(ssm.StateSpaceModel):
     def PY(self, t, xp, x):
         expo_t = self.tau[t] * math.exp(float(self.X[t] @ self.beta))
         return dists.Poisson(rate=expo_t * x)
-    
 
-def run_particles_pf(y, expo, nu, phi, c, N=20000, seed=0, verbose=False):
-    """
-    Run bootstrap PF using particles, return total log-likelihood estimate.
-    """
-    fk = ssm.Bootstrap(
-        ssm=CrealCoxSSM(nu=nu, phi=phi, c=c, expo=expo, seed=seed),
-        data=y
-    )
-    alg = particles.SMC(fk=fk, N=N, verbose=verbose)
-    alg.run()
-    ll = alg.logLt
-    return float(ll) if np.isscalar(ll) else float(np.sum(ll))
 
