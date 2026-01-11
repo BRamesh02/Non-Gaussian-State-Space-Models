@@ -4,7 +4,7 @@ from scipy.stats import gamma
 from statsmodels.tsa.stattools import acf
 
 
-# ---- 1) Série temporelle y et h ----
+# ---- 1) Time series y and h ----
 def plot_time_series(y, h, T_show=200, start=0, use_bars=False):
     y = np.asarray(y).ravel()
     h = np.asarray(h).ravel()
@@ -30,7 +30,7 @@ def plot_time_series(y, h, T_show=200, start=0, use_bars=False):
     plt.show()
 
 
-# ---- 2) Histogramme de h et densité théorique ----
+# ---- 2) Histogram of h and theoretical density ----
 def plot_histogram_h(h, nu, phi, c, burn=100):
     h = np.asarray(h).ravel()
     h_ss = h[burn:] if burn < len(h) else h
@@ -38,7 +38,7 @@ def plot_histogram_h(h, nu, phi, c, burn=100):
     x = np.linspace(0, np.percentile(h_ss, 99.5), 300)
     pdf = gamma.pdf(x, a=nu, scale=c/(1-phi))
 
-    # moyennes (petit check stationnarité)
+    # averages (small stationarity check)
     emp_mean = float(np.mean(h_ss))
     theo_mean = nu * (c/(1-phi))
 
@@ -49,15 +49,15 @@ def plot_histogram_h(h, nu, phi, c, burn=100):
     plt.axvline(emp_mean, linestyle="--", linewidth=2, label=f"Emp. mean={emp_mean:.3g}")
     plt.axvline(theo_mean, linestyle=":", linewidth=2, label=f"Theo. mean={theo_mean:.3g}")
 
-    plt.title("Histogramme de h_t + densité Gamma stationnaire")
+    plt.title("Histogram of h_t + stationary Gamma density")
     plt.xlabel("h")
-    plt.ylabel("densité")
+    plt.ylabel("density")
     plt.legend()
     plt.tight_layout()
     plt.show()
 
 
-# ---- 3) Autocorrélation de h ----
+# ---- 3) Autocorrelation of h ----
 def plot_acf_h(h, lags=30, burn=0):
     h = np.asarray(h).ravel()
     h2 = h[burn:] if burn < len(h) else h
@@ -72,7 +72,7 @@ def plot_acf_h(h, lags=30, burn=0):
     plt.show()
 
 
-# ---- 3bis) Autocorrélation de y (utile car c'est observé) ----
+# ---- 3bis) Autocorrelation of y (useful because it is observed) ----
 def plot_acf_y(y, lags=30, burn=0):
     y = np.asarray(y).ravel()
     y2 = y[burn:] if burn < len(y) else y
@@ -96,7 +96,7 @@ def plot_overlay_clean(y, h, T_show=400, start=0):
 
     fig, ax1 = plt.subplots(figsize=(12, 4))
 
-    # h_t : ligne rouge (latent)
+    # h_t : red line (latent)
     ax1.plot(
         t,
         h[start:end],
@@ -107,7 +107,7 @@ def plot_overlay_clean(y, h, T_show=400, start=0):
     ax1.set_xlabel("t")
     ax1.set_ylabel(r"$h_t$")
 
-    # y_t : ligne noire (observé)
+    # y_t : black line (observed)
     ax2 = ax1.twinx()
     ax2.plot(
         t,
@@ -121,7 +121,7 @@ def plot_overlay_clean(y, h, T_show=400, start=0):
 
     plt.title(f"Simulation : Cox Process (T={len(y)})")
 
-    # légende combinée
+    # combined legend
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper right")

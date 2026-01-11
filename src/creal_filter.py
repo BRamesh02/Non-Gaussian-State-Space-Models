@@ -2,11 +2,9 @@ import math
 import numpy as np
 from numba import njit
 
-# PARTIE 1 : Helpers Numba
-
 @njit
 def _logsumexp_1d(a):
-    """Log-sum-exp stable fait à la main pour Numba."""
+    """Stable log-sum-exp written explicitly for Numba."""
     m = -1e300  # -inf
     for i in range(a.shape[0]):
         if a[i] > m:
@@ -21,15 +19,17 @@ def _logsumexp_1d(a):
 
     return m + math.log(s)
 
+
 @njit
 def _nbinom_logpmf(k, r, p):
-    """Log-PMF de la loi Negative Binomiale."""
+    """Log-PMF of the Negative Binomial distribution."""
     if k < 0: return -1e300
     return (math.lgamma(k + r)
             - math.lgamma(r)
             - math.lgamma(k + 1.0)
             + r * math.log(p)
             + k * math.log(1.0 - p))
+
 
 @njit
 def _exact_filter_core(y, exposure_arr, Z, phi, nu, c, return_filter):
@@ -52,7 +52,7 @@ def _exact_filter_core(y, exposure_arr, Z, phi, nu, c, return_filter):
     tmp = np.empty(Z + 1)
     new_log_p_z = np.empty(Z + 1)
 
-    # stockage des filtres si demandé
+    # Store filtered probabilities if requested
     if return_filter:
         filt_prob = np.empty((T, Z + 1))
     else:
@@ -62,7 +62,7 @@ def _exact_filter_core(y, exposure_arr, Z, phi, nu, c, return_filter):
         yt = y[t]
         bt = exposure_arr[t]
 
-        # --- UPDATE ---
+        # Update
         p_obs = 1.0 / (1.0 + c * bt)
         for i in range(Z + 1):
             r_obs = nu + z_grid[i]
@@ -74,17 +74,17 @@ def _exact_filter_core(y, exposure_arr, Z, phi, nu, c, return_filter):
         for i in range(Z + 1):
             log_p_z[i] = tmp[i] - log_like_t
 
-        # filtré: p(z_t | y_1:t)
+        # Filtered: p(z_t | y_1:t)
         if return_filter:
             for i in range(Z + 1):
                 filt_prob[t, i] = math.exp(log_p_z[i])
 
-        # diag : proba au bord
+        # Diagnostic: boundary probability
         pZ = math.exp(log_p_z[Z])
         if pZ > max_pZ:
             max_pZ = pZ
 
-        # --- PREDICTION ---
+        # Prediction 
         if t < T - 1:
             p_trans = (1.0 + c * bt) / (1.0 + c * bt + phi)
 
@@ -101,33 +101,30 @@ def _exact_filter_core(y, exposure_arr, Z, phi, nu, c, return_filter):
     return total_log_like, max_pZ, filt_prob
 
 
-# PARTIE 2 : Classe Utilisateur 
-
 class ExactFilter:
+    """Exact filter from Creal (2017) and Creal (2012), "A Class of Non-Gaussian State Space Models with Exact Likelihood Inference"."""
     def __init__(self, y, Z_trunc=50):
         self.y = np.asarray(y, dtype=np.int64)
         self.T = len(self.y)
         self.Z = int(Z_trunc)
 
     def _compute_exposure(self, expo, X, beta_coeffs, tau):
-        # 1. Exposition fournie directement
+        # Direct exposure provided
         if expo is not None:
             return np.asarray(expo, dtype=np.float64).ravel()
 
-        # 2. Sinon, on construit depuis X, beta, tau
+        # Otherwise build from X, beta, tau
         if tau is None:
             tau_vec = np.ones(self.T)
         else:
             tau_vec = np.asarray(tau, dtype=np.float64).ravel()
 
         if X is None:
-        # Pas de régresseurs, juste tau
+        # No regressors, just tau
             return tau_vec
 
-    # --- AJOUT ICI ---
         if beta_coeffs is None:
             raise ValueError("coeffs must be provided when X is provided")
-    # ------------------
 
         X = np.asarray(X, dtype=np.float64)
         if X.ndim == 1:
@@ -143,24 +140,24 @@ class ExactFilter:
                    X=None, coeffs=None, tau=None, exposure=None,
                    return_diag=False, return_filter=False):
         """
-        Calcule la log-vraisemblance.
+        Compute the log-likelihood.
         
-        Paramètres:
+        Parameters:
         -----------
-        phi, nu, c : paramètres scalaires du modèle
-        X : (T, K) matrice de régresseurs (optionnel)
-        coeffs : (K,) coefficients de régression (optionnel)
-        tau : (T,) offset/volume (optionnel)
-        exposure : (T,) vecteur direct d'exposition (prioritaire si fourni)
+        phi, nu, c : scalar model parameters
+        X : (T, K) regressor matrix (optional)
+        coeffs : (K,) regression coefficients (optional)
+        tau : (T,) offset/volume (optional)
+        exposure : (T,) direct exposure vector (takes priority if provided)
         """
-        # 1. Préparation des données (Python/Numpy)
+        # Prepare data (Python/Numpy)
         exposure_vec = self._compute_exposure(exposure, X, coeffs, tau)
         
         if len(exposure_vec) != self.T:
-            raise ValueError(f"L'exposition doit avoir la taille T={self.T}")
+            raise ValueError(f"Exposure must have length T={self.T}")
             
-        # 2. Appel au moteur optimisé (Numba)
-        # Le compilateur JIT va mettre en cache cette fonction au premier appel
+        # Call optimized core (Numba)
+        # The JIT compiler caches this function on first call
         ll, max_pz, filt_prob = _exact_filter_core(
             self.y, exposure_vec, self.Z, float(phi), float(nu), float(c),
             return_filter
