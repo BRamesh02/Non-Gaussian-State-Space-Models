@@ -16,7 +16,7 @@ def log_prior(theta):
     else:
         return -np.inf
 
-def run_metropolis_exact(y_data, exact_filter, n_iterations=5000, initial_theta=None, proposal_std=None, disable_tqdm=False):
+def run_metropolis_exact(y_data, exact_filter,  X=None,beta=None,n_iterations=5000, initial_theta=None, proposal_std=None, disable_tqdm=False):
     """
     MCMC Random Walk Metropolis-Hastings algorithm.
     MODIFICATION: Now returns (chain, acceptance_rate)
@@ -36,7 +36,7 @@ def run_metropolis_exact(y_data, exact_filter, n_iterations=5000, initial_theta=
         current_theta = np.array([0.5, 2.5, 0.5])
         
     current_log_prior = log_prior(current_theta)
-    current_log_lik = exact_filter.log_likelihood(current_theta[0], current_theta[1], current_theta[2])
+    current_log_lik = exact_filter.log_likelihood(phi=current_theta[0], nu=current_theta[1], c=current_theta[2], X=X ,coeffs=beta)
     current_log_post = current_log_lik + current_log_prior
 
     iterator = range(n_iterations)
@@ -51,7 +51,7 @@ def run_metropolis_exact(y_data, exact_filter, n_iterations=5000, initial_theta=
             chain[i] = current_theta
         else:
             try:
-                prop_log_lik = exact_filter.log_likelihood(proposal[0], proposal[1], proposal[2])
+                prop_log_lik = exact_filter.log_likelihood(proposal[0], proposal[1], proposal[2],X=X ,coeffs=beta)
                 prop_log_post = prop_log_lik + prop_log_prior
                 
                 log_alpha = prop_log_post - current_log_post
@@ -77,7 +77,7 @@ def run_metropolis_exact(y_data, exact_filter, n_iterations=5000, initial_theta=
 
 # --- 2. PARALLEL FUNCTION ---
 
-def _worker_chain(seed, y, exact_filter, n_iter, proposal_std):
+def _worker_chain(seed, y, exact_filter, n_iter, proposal_std, X=None, beta=None):
     np.random.seed(seed)
     start_phi = np.random.uniform(0.5, 0.95) # Be careful at 0.999, it's risky.
     start_nu  = np.random.uniform(1.5, 3.5)
@@ -91,12 +91,12 @@ def _worker_chain(seed, y, exact_filter, n_iter, proposal_std):
         n_iterations=n_iter,
         initial_theta=start_theta,
         proposal_std=proposal_std,
-        disable_tqdm=True 
+        disable_tqdm=True, X=X ,beta=beta
     )
 
 # --- 3. MULTI-CHANNEL ORCHESTRATOR ---
 
-def run_multi_chain_mcmc(y, exact_filter, n_chains=4, n_iter=2000, proposal_std=[0.008, 0.07, 0.03], burn_in=500, true_params=None):
+def run_multi_chain_mcmc(y, exact_filter, X=None,beta=None, n_chains=4, n_iter=2000, proposal_std=[0.008, 0.07, 0.03], burn_in=500, true_params=None):
     """
     Launches multiple MCMC chains in parallel and displays ALL results.
     """
@@ -107,6 +107,8 @@ def run_multi_chain_mcmc(y, exact_filter, n_chains=4, n_iter=2000, proposal_std=
         delayed(_worker_chain)(
             seed=k, 
             y=y, 
+            X=X,
+            beta=beta,
             exact_filter=exact_filter, 
             n_iter=n_iter, 
             proposal_std=proposal_std
