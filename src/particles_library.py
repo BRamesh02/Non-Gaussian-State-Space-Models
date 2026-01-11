@@ -84,44 +84,41 @@ class GammaPoissonGammaTrans:
 
 
 class CrealCoxSSM(ssm.StateSpaceModel):
-    """
-    Creal (2017) Cox / frailty model, for bootstrap PF on h_t, with time-varying exposure:
-
-      h0 ~ Gamma(nu, scale=c/(1-phi))
-      z_t | h_{t-1} ~ Poisson(phi*h_{t-1}/c)
-      h_t | z_t ~ Gamma(nu+z_t, scale=c)
-      y_t | h_t ~ Poisson(expo_t * h_t)
-
-    Pass expo as a length-T vector (e.g. expo2 from your simulator).
-    """
-    def __init__(self, nu, phi, c, expo, seed=0, z_trunc_logpdf=300):
+    def __init__(self, nu, phi, c, X, beta, tau=None, seed=0, z_trunc_logpdf=300):
         self.nu = float(nu)
         self.phi = float(phi)
         self.c = float(c)
-        self.expo = np.asarray(expo, dtype=float).ravel()
+
+        X = np.asarray(X, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        self.X = X
+
+        self.beta = np.asarray(beta, dtype=float).ravel()
+        if self.X.shape[1] != self.beta.shape[0]:
+            raise ValueError(f"beta must have length K={self.X.shape[1]}")
+
+        T = self.X.shape[0]
+        self.tau = np.ones(T, dtype=float) if tau is None else np.asarray(tau, dtype=float).ravel()
+        if self.tau.shape[0] != T:
+            raise ValueError("tau must have length T")
+
         self.rng = np.random.default_rng(seed)
         self.z_trunc_logpdf = int(z_trunc_logpdf)
 
     def PX0(self):
-        # particles Gamma(a,b) uses b=rate, so scale = 1/b
-        # want scale=c/(1-phi) -> rate=(1-phi)/c
         rate0 = (1.0 - self.phi) / self.c
         return dists.Gamma(a=self.nu, b=rate0)
 
     def PX(self, t, xp):
-        # Return a transition object that can sample h_t given xp (vector)
         return GammaPoissonGammaTrans(
-            hp=xp,
-            nu=self.nu,
-            phi=self.phi,
-            c=self.c,
-            rng=self.rng,
-            z_trunc_logpdf=self.z_trunc_logpdf
+            hp=xp, nu=self.nu, phi=self.phi, c=self.c,
+            rng=self.rng, z_trunc_logpdf=self.z_trunc_logpdf
         )
 
     def PY(self, t, xp, x):
-        # y_t | h_t ~ Poisson(expo_t * h_t)
-        return dists.Poisson(rate=self.expo[t] * x)
+        expo_t = self.tau[t] * math.exp(float(self.X[t] @ self.beta))
+        return dists.Poisson(rate=expo_t * x)
     
 
 def run_particles_pf(y, expo, nu, phi, c, N=20000, seed=0, verbose=False):
@@ -136,3 +133,4 @@ def run_particles_pf(y, expo, nu, phi, c, N=20000, seed=0, verbose=False):
     alg.run()
     ll = alg.logLt
     return float(ll) if np.isscalar(ll) else float(np.sum(ll))
+
