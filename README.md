@@ -1,7 +1,7 @@
 # Exact and Particle Filtering for Non-Gaussian State Space Models
 
 This repository contains the code for an academic project carried out in the context of
-the **ENSAE course _Hidden Markov Models and Sequential Monte-Carlo Methods_**.
+the **ENSAE course _Hidden Markov Models and Sequential Monte-Carlo Methods_** given by M. Chopin.
 
 **Authors**  
 - Boyina Leena  
@@ -21,6 +21,18 @@ This project is based on the paper:
 The paper proposes an **exact filtering algorithm** for a specific class of non-Gaussian
 state-space models.  
 Our work focuses on the **first model introduced in Section 5.1** of the paper.
+
+---
+
+## Installation
+
+Create and activate a virtual environment, then install dependencies from `requirements.txt`:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
 ---
 
@@ -56,21 +68,27 @@ The project is structured around three main tasks.
 
 ```text
 .
+├── data/
+│   ├── data_groupe_T1000.xlsx  # Source data
+│   └── stored_result/          # Stored outputs
 ├── notebooks/
-│   ├── task_1.ipynb           # Exact vs bootstrap filtering comparison
-│   ├── task_2.ipynb           # (Optional / intermediate experiments)
-│   └── task_3.ipynb           # MCMC and PMMH inference experiments
-│
+│   ├── generate_and_load_data.ipynb
+│   ├── task_1.ipynb            # Exact vs bootstrap filtering comparison
+│   ├── task_2.ipynb            # (Optional / intermediate experiments)
+│   ├── task_3.ipynb            # MCMC and PMMH inference experiments
 ├── src/
-│   ├── cox_simulation.py      # Simulation of the state-space model (Section 5.1)
-│   ├── creal_filter.py        # Exact filtering algorithm (Creal, 2012)
-│   ├── particle_filter.py    # Bootstrap particle filter
-│   └── __pycache__/
-│
+│   ├── cox_simulation.py       # Simulation of the state-space model (Section 5.1)
+│   ├── creal_filter.py         # Exact filtering algorithm (Creal, 2012)
+│   ├── metropolis.py           # RWMH sampler
+│   ├── particle_filter.py      # Bootstrap particle filter
+│   ├── particles_library.py    # Particles-based SSM wrapper
+│   └── pmmh.py                 # PMMH implementation
 ├── utils/
-│   ├── plots.py               # Plotting utilities (likelihoods, filters, ACFs)
-│   └── __pycache__/
-│
+│   ├── comparaison.py          # Comparison helpers
+│   ├── load_data.py            # Data loading utilities
+│   └── plots.py                # Plotting utilities (likelihoods, filters, ACFs)
+├── likelihood_exact_vs_boostrap.png
+├── series.png
 ├── README.md
 └── .gitignore
 
