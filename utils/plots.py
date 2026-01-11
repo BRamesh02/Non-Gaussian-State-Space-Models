@@ -128,3 +128,103 @@ def plot_overlay_clean(y, h, T_show=400, start=0):
 
     plt.tight_layout()
     plt.show()
+
+
+
+
+def plot_mcmc_diagnostics(chains, true_params=None, param_names=None, burn_in=500):
+    """
+    Trace un diagnostic complet pour un algorithme MCMC (Traceplot, Densité, ACF).
+    
+    Arguments:
+    ----------
+    chains : np.ndarray
+        Tableau de forme (n_chains, n_iter, n_params) ou (n_iter, n_params).
+        C'est votre objet 'res'.
+    true_params : list/array (optionnel)
+        Les vraies valeurs des paramètres pour comparaison (ex: [0.8, 3, 0.4]).
+    param_names : list (optionnel)
+        Noms des paramètres (ex: [r'$\phi$', r'$\nu$', r'$c$']).
+    burn_in : int
+        Nombre d'itérations à ignorer au début (période de chauffe).
+    """
+    
+    # Gestion des dimensions (si une seule chaîne est passée)
+    if chains.ndim == 2:
+        chains = chains[np.newaxis, :, :]
+    
+    n_chains, n_iter, n_params = chains.shape
+    
+    # Noms par défaut si non fournis
+    if param_names is None:
+        param_names = [f'Param {i+1}' for i in range(n_params)]
+        
+    # Couleurs et style
+    colors = plt.cm.viridis(np.linspace(0, 0.8, n_chains))
+    
+    # Création de la figure : Une ligne par paramètre, 3 colonnes (Trace, Hist, ACF)
+    fig, axes = plt.subplots(n_params, 3, figsize=(15, 4 * n_params))
+    
+    for i in range(n_params):
+        # --- Données pour ce paramètre ---
+        # On ne garde que la partie post-burn-in
+        chain_data = chains[:, burn_in:, i]
+        flat_data = chain_data.flatten() # Pour l'histogramme global
+        
+        # -----------------------------
+        # 1. TRACEPLOT (Mélange)
+        # -----------------------------
+        ax_trace = axes[i, 0]
+        for c in range(n_chains):
+            ax_trace.plot(chain_data[c], lw=0.5, alpha=0.6, color=colors[c])
+        
+        if true_params is not None:
+            ax_trace.axhline(true_params[i], color='red', linestyle='--', lw=2, label='Vrai')
+            if i == 0: ax_trace.legend()
+            
+        ax_trace.set_title(f'Traceplot : {param_names[i]}')
+        ax_trace.set_xlabel('Itérations (post burn-in)')
+        ax_trace.set_ylabel('Valeur')
+        ax_trace.grid(True, alpha=0.3)
+
+        # -----------------------------
+        # 2. DENSITÉ (Posterior)
+        # -----------------------------
+        ax_hist = axes[i, 1]
+        # Histogramme
+        ax_hist.hist(flat_data, bins=30, density=True, alpha=0.4, color='skyblue', edgecolor='black')
+        
+        # KDE (Estimation de densité lisse)
+        kde = stats.gaussian_kde(flat_data)
+        x_grid = np.linspace(flat_data.min(), flat_data.max(), 200)
+        ax_hist.plot(x_grid, kde(x_grid), color='blue', lw=2)
+        
+        # Ligne de la vraie valeur
+        if true_params is not None:
+            ax_hist.axvline(true_params[i], color='red', linestyle='--', lw=2, label='Vrai')
+            
+        # Moyenne estimée
+        estim_mean = np.mean(flat_data)
+        ax_hist.axvline(estim_mean, color='green', linestyle='-', lw=2, label=f'Moy: {estim_mean:.3f}')
+        
+        ax_hist.set_title(f'Densité A Posteriori : {param_names[i]}')
+        if i == 0: ax_hist.legend()
+        ax_hist.grid(True, alpha=0.3)
+
+        # -----------------------------
+        # 3. ACF (Autocorrélation)
+        # -----------------------------
+        ax_acf = axes[i, 2]
+        # On calcule l'ACF sur la première chaîne (souvent suffisant pour le diagnostic)
+        # ou sur la moyenne des ACF si on veut être puriste, mais ici chaîne 0 suffit.
+        acf_vals = acf(chains[0, burn_in:, i], nlags=40)
+        
+        ax_acf.stem(range(len(acf_vals)), acf_vals, basefmt=" ")
+        ax_acf.set_ylim(-0.2, 1.1)
+        ax_acf.set_title(f'Autocorrélation (ACF) : {param_names[i]}')
+        ax_acf.set_xlabel('Lag')
+        ax_acf.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
+
