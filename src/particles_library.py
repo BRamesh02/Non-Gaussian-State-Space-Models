@@ -182,3 +182,21 @@ class CrealCoxSSM(ssm.StateSpaceModel):
         else:  # "tau_only"
             expo_t = self.tau[t]
         return dists.Poisson(rate=expo_t * x)
+    
+
+def pf_loglik_particles_xbeta(y, nu, phi, c, X=None, beta=None, tau=None, N=500, seed=0):
+    y = np.asarray(y, dtype=np.int64)
+    T = len(y)
+
+    fk = ssm.Bootstrap(
+        ssm=CrealCoxSSM(
+            nu=float(nu), phi=float(phi), c=float(c),
+            T=T, X=X, beta=beta, tau=tau,
+            seed=int(seed)
+        ),
+        data=y
+    )
+    alg = particles.SMC(fk=fk, N=int(N), verbose=False)
+    alg.run()
+    ll = alg.logLt
+    return float(ll) if np.isscalar(ll) else float(np.sum(ll))
