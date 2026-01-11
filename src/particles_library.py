@@ -1,12 +1,12 @@
 import math
 import numpy as np
-
 import particles
 import particles.state_space_models as ssm
 import particles.distributions as dists
 
 
 def _logsumexp(a):
+    """Stable log-sum-exp for a 1D array-like input."""
     a = np.asarray(a, dtype=float)
     m = np.max(a)
     if np.isneginf(m):
@@ -15,6 +15,7 @@ def _logsumexp(a):
 
 
 def _poisson_logpmf(k, lam):
+    """Return log PMF of Poisson(k; lam); supports scalar inputs."""
     # k integer, lam > 0
     if lam <= 0:
         return -np.inf
@@ -22,6 +23,7 @@ def _poisson_logpmf(k, lam):
 
 
 def _gamma_logpdf(x, shape, scale):
+    """Return log PDF of Gamma(shape, scale) at x; x>0 required."""
     # Gamma(shape, scale), x>0
     if x <= 0 or shape <= 0 or scale <= 0:
         return -np.inf
@@ -47,18 +49,13 @@ class GammaPoissonGammaTrans:
         self.z_trunc_logpdf = int(z_trunc_logpdf)
 
     def rvs(self, size=None):
-        # In particles Bootstrap, size is typically N; we can ignore it and use hp shape
+        """Sample h_t given hp using the Poisson-Gamma hierarchy."""
         lam = (self.phi * self.hp) / self.c
         z = self.rng.poisson(lam=lam)  # vector
         return self.rng.gamma(shape=self.nu + z, scale=self.c)  # vector
 
     def logpdf(self, x):
-        """
-        Truncated mixture density:
-          p(h|hp) = sum_{z>=0} Poisson(z; phi*hp/c) * Gamma(h; nu+z, scale=c)
-
-        We truncate z at z_trunc_logpdf for numerical evaluation.
-        """
+        """Compute log p(x|hp) via truncated Poisson-Gamma mixture."""
         x = np.asarray(x, dtype=float)
         if x.ndim == 0:
             x = x[None]
@@ -85,21 +82,24 @@ class GammaPoissonGammaTrans:
 
 class CrealCoxSSM(ssm.StateSpaceModel):
     """
-    Modèle:
+    Model:
       h0 ~ Gamma(nu, scale=c/(1-phi))
       z_t | h_{t-1} ~ Poisson(phi*h_{t-1}/c)
       h_t | z_t ~ Gamma(nu+z_t, scale=c)
       y_t | h_t ~ Poisson(expo_t * h_t)
 
-    expo_t est défini par priorité:
-      1) expo (si fourni)
-      2) tau_t * exp(X_t @ beta) (si X et beta fournis)
-      3) tau_t (si tau fourni)
-      4) 1 (sinon)
+    Based on the particles library (StateSpaceModel).
+
+    expo_t is defined in priority order:
+      1) expo (if provided)
+      2) tau_t * exp(X_t @ beta) (if X and beta provided)
+      3) tau_t (if tau provided)
+      4) 1 (otherwise)
     """
     def __init__(self, nu, phi, c, T=None,
                  expo=None, X=None, beta=None, tau=None,
                  seed=0, z_trunc_logpdf=300):
+        """Initialize the model, exposure mode, and time length."""
 
         self.nu = float(nu)
         self.phi = float(phi)
@@ -108,7 +108,7 @@ class CrealCoxSSM(ssm.StateSpaceModel):
         self.rng = np.random.default_rng(int(seed))
         self.z_trunc_logpdf = int(z_trunc_logpdf)
 
-        # ---- déterminer T ----
+        #  determine T 
         if expo is not None:
             expo_arr = np.asarray(expo, dtype=float).ravel()
             T_infer = expo_arr.shape[0]
@@ -125,7 +125,7 @@ class CrealCoxSSM(ssm.StateSpaceModel):
 
         self.T = T_infer
 
-        # ---- construire tau ----
+        #  build tau 
         if tau is None:
             self.tau = np.ones(self.T, dtype=float)
         else:
@@ -133,7 +133,7 @@ class CrealCoxSSM(ssm.StateSpaceModel):
             if self.tau.shape[0] != self.T:
                 raise ValueError("tau must have length T")
 
-        # ---- cas 1: expo direct ----
+        #  case 1: direct expo 
         if expo is not None:
             self.expo = np.asarray(expo, dtype=float).ravel()
             if self.expo.shape[0] != self.T:
@@ -141,7 +141,7 @@ class CrealCoxSSM(ssm.StateSpaceModel):
             self._mode = "expo"
             return
 
-        # ---- cas 2: X beta ----
+        #  case 2: X beta 
         if (X is not None) or (beta is not None):
             if X is None or beta is None:
                 raise ValueError("If using regression, must provide BOTH X and beta.")
@@ -158,20 +158,23 @@ class CrealCoxSSM(ssm.StateSpaceModel):
             self._mode = "xbeta"
             return
 
-        # ---- cas 3: pas de covariables, juste tau ----
+        #  case 3: no covariates, tau only 
         self._mode = "tau_only"
 
     def PX0(self):
+        """Return prior distribution for h0."""
         rate0 = (1.0 - self.phi) / self.c
         return dists.Gamma(a=self.nu, b=rate0)
 
     def PX(self, t, xp):
+        """Return transition distribution for h_t given h_{t-1}."""
         return GammaPoissonGammaTrans(
             hp=xp, nu=self.nu, phi=self.phi, c=self.c,
             rng=self.rng, z_trunc_logpdf=self.z_trunc_logpdf
         )
 
     def PY(self, t, xp, x):
+        """Return observation distribution for y_t given h_t."""
         if self._mode == "expo":
             expo_t = self.expo[t]
         elif self._mode == "xbeta":
@@ -179,5 +182,3 @@ class CrealCoxSSM(ssm.StateSpaceModel):
         else:  # "tau_only"
             expo_t = self.tau[t]
         return dists.Poisson(rate=expo_t * x)
-
-
