@@ -8,7 +8,7 @@ import particles
 from particles import state_space_models as ssm
 from particles import distributions as dists
 from particles.mcmc import PMMH
-
+from particles_library import CrealCoxSSM
 
 class CoxAnalysisManager:
     def __init__(self, n_iter=2000, burnin=500):
