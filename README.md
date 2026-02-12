@@ -1,7 +1,7 @@
 # Exact and Particle Filtering for Non-Gaussian State Space Models
 
 This repository contains the code for an academic project carried out in the context of
-the **ENSAE course _Hidden Markov Models and Sequential Monte-Carlo Methods_** given by M. Chopin.
+the **ENSAE course _Hidden Markov Models and Sequential Monte-Carlo Methods_** given by N. Chopin.
 
 **Authors**  
 - Boyina Leena  
@@ -62,70 +62,45 @@ The project is structured around three main tasks.
   - impact of the number of particles \(N\).
 - This analysis follows the discussion from the course on **PMMH calibration**.
 
+Note: `data/` contains the simulated dataset used throughout the project for simplicity.
+
 ---
 
 ## Repository Structure
 
 ```text
 .
-├── data/
-│   ├── data_groupe_T1000.xlsx  # Source data
-│   └── stored_result/          # Stored outputs
-├── notebooks/
-│   ├── generate_and_load_data.ipynb # To generate data used for each task
-│   ├── task_1.ipynb                 # Exact vs bootstrap filtering comparison
-│   ├── task_2.ipynb                 # (Optional / intermediate experiments)
-│   ├── task_3.ipynb                 # MCMC and PMMH inference experiments
-├── src/
-│   ├── cox_simulation.py       # Simulation of the state-space model (Section 5.1)
-│   ├── creal_filter.py         # Exact filtering algorithm (Creal, 2012)
-│   ├── metropolis.py           # RWMH sampler
-│   ├── particle_filter.py      # Bootstrap particle filter
-│   ├── particles_library.py    # Particles-based SSM wrapper
-│   └── pmmh.py                 # PMMH implementation
-├── utils/
-│   ├── comparaison.py          # Comparison helpers
-│   ├── load_data.py            # Data loading utilities
-│   └── plots.py                # Plotting utilities (likelihoods, filters, ACFs)
-├── likelihood_exact_vs_boostrap.png
-├── series.png
 ├── README.md
-└── .gitignore
-
-
-
----
-
-## Main Components
-
-### `cox_simulation.py`
-- Simulates the non-Gaussian state-space model from Section 5.1
-- Allows full control over true parameter values
-
-### `creal_filter.py`
-- Implements the **exact filtering algorithm**
-- Computes the **true likelihood** of the observed data
-
-### `particle_filter.py`
-- Implements a **bootstrap particle filter**
-- Returns filtering distributions and likelihood estimates
-
-### `utils/plots.py`
-- Helper functions for:
-  - Likelihood profiles
-  - Filtering distribution plots
-  - Autocorrelation functions (ACFs)
-
+├── requirements.txt
+├── .gitignore
+├── data/
+│   ├── data_groupe_T1000.xlsx      # Source data
+│   └── stored_result/              # Saved experiment outputs
+├── notebooks/
+│   ├── generate_and_load_data.ipynb
+│   ├── task_1.ipynb                # Exact vs bootstrap filtering comparison
+│   ├── task_2.ipynb                # Metropolis-Hastings experiments
+│   └── task_3.ipynb                # PMMH experiments
+├── src/
+│   ├── cox_simulation.py           # Simulation for data
+│   ├── creal_filter.py             # Exact filtering algorithm (Creal, 2012)
+│   ├── metropolis.py               # Random-Walk Metropolis-Hastings
+│   ├── particle_filter.py          # Bootstrap particle filter
+│   ├── particles_library.py        # Wrapper around particles package
+│   └── pmmh.py                     # PMMH implementation
+├── utils/
+│   ├── comparison.py               # Comparison helpers
+│   ├── load_data.py                # Data loading utilities
+│   └── plots.py                    # Plotting helpers
+├── report/
+│   └── HMM_project.pdf
 ```
-
-Note: `data/` contains the simulated dataset used throughout the project for simplicity.
 
 ---
 
 ## References
 
 - Creal, D. (2012). *A Class of Non-Gaussian State Space Models with Exact Likelihood Inference*.
-- Andrieu, C., Doucet, A., & Holenstein, R. (2010). *Particle Markov chain Monte Carlo methods*.
 
 ---
 
